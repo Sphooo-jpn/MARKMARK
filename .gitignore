@@ -6,3 +6,5 @@ dist/
 .vite/
 scripts/_shot*.png
 scripts/*.tmp.md
+# Windows-specific verification helpers (env-specific, not part of the app)
+scripts/*.ps1
