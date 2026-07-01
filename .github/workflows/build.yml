@@ -23,7 +23,10 @@ jobs:
         run: npm ci
 
       - name: Build & package (NSIS installer)
-        run: npm run dist
+        # electron-builder auto-enables publishing on CI; disable it (we release manually).
+        run: |
+          npm run build
+          npx electron-builder --win --publish never
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
