@@ -69,8 +69,83 @@ body {
   height: 100vh;
 }
 
-.editor-host {
+/* Tab strip */
+#tabbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  height: 34px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--status-bg);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 200px;
+  padding: 0 6px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  background: var(--bg);
+}
+
+.tab-active {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-close {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-radius: 4px;
+  line-height: 1.4;
+}
+
+.tab-close:hover {
+  background: var(--border);
+  color: var(--fg);
+}
+
+.tab-new {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab-new:hover {
+  color: var(--fg);
+}
+
+/* Editor area: one host per tab, only the active one is displayed. */
+#editor-area {
   flex: 1 1 auto;
+  position: relative;
+  min-height: 0;
+}
+
+.editor-host {
+  position: absolute;
+  inset: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }

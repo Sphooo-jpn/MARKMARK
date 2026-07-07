@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
 import { existsSync } from 'fs'
+import { findFilePathInArgv } from './argv.js'
 
 const isDev = !app.isPackaged
 
@@ -9,31 +10,12 @@ const isDev = !app.isPackaged
 let mainWindow = null
 /** File path passed at launch (double-click / "open with"), consumed by renderer on ready. */
 let pendingFilePath = null
-/** Renderer-reported unsaved state, used to guard window close. */
+/** Renderer-reported unsaved state (any dirty tab), used to guard window close. */
 let isDirty = false
 /** Set true while we programmatically force-close after the save dialog. */
 let forceClose = false
 
-const MD_EXTENSIONS = ['.md', '.markdown', '.mdown', '.markdn', '.mkd', '.mkdn']
-
-/**
- * Extract a markdown file path from a process argv array.
- * Handles both dev (electron . file.md) and packaged (MARKMARK.exe file.md) invocations,
- * and skips electron/chromium flags.
- */
-function findFilePathInArgv(argv) {
-  // In dev, argv = [electronBinary, '.', ...maybe file]. In prod, argv = [exe, ...args].
-  const args = argv.slice(isDev ? 2 : 1)
-  for (const arg of args) {
-    if (!arg || arg.startsWith('-')) continue
-    if (arg === '.') continue
-    const lower = arg.toLowerCase()
-    if (MD_EXTENSIONS.some((ext) => lower.endsWith(ext)) && existsSync(arg)) {
-      return arg
-    }
-  }
-  return null
-}
+const argvEnv = { isDev, exists: existsSync }
 
 async function readMarkdownFile(filePath) {
   const content = await readFile(filePath, 'utf8')
@@ -103,7 +85,7 @@ async function promptSaveBeforeClose() {
     defaultId: 0,
     cancelId: 2,
     message: '変更が保存されていません',
-    detail: '閉じる前に変更を保存しますか？'
+    detail: '未保存のタブがあります。閉じる前に保存しますか？'
   })
   if (response === 2) return // cancel
   if (response === 1) {
@@ -125,13 +107,23 @@ function buildMenu() {
     {
       label: 'ファイル',
       submenu: [
-        { label: '新規', accelerator: 'CmdOrCtrl+N', click: send('new') },
-        { label: '開く…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+        { label: '新規タブ', accelerator: 'CmdOrCtrl+N', click: send('new') },
+        { label: '開く…（新しいタブ）', accelerator: 'CmdOrCtrl+O', click: send('open') },
         { type: 'separator' },
         { label: '保存', accelerator: 'CmdOrCtrl+S', click: send('save') },
         { label: '名前を付けて保存…', accelerator: 'CmdOrCtrl+Shift+S', click: send('save-as') },
         { type: 'separator' },
         { role: 'quit', label: '終了' }
+      ]
+    },
+    {
+      label: 'タブ',
+      submenu: [
+        { label: '新しいタブ', accelerator: 'CmdOrCtrl+T', click: send('new-tab') },
+        { label: 'タブを閉じる', accelerator: 'CmdOrCtrl+W', click: send('close-tab') },
+        { type: 'separator' },
+        { label: '次のタブ', accelerator: 'Control+Tab', click: send('next-tab') },
+        { label: '前のタブ', accelerator: 'Control+Shift+Tab', click: send('prev-tab') }
       ]
     },
     {
@@ -252,13 +244,18 @@ function registerIpc() {
 // ---------------------------------------------------------------------------
 // App lifecycle + single instance
 // ---------------------------------------------------------------------------
+// Isolated userData (separate single-instance lock) so a test/dev instance can
+// run alongside an installed MARKMARK: MARKMARK_USER_DATA=<dir>.
+if (process.env.MARKMARK_USER_DATA) {
+  app.setPath('userData', process.env.MARKMARK_USER_DATA)
+}
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', (_event, argv) => {
     // Another instance was launched (e.g. user double-clicked another .md).
-    const filePath = findFilePathInArgv(argv)
+    const filePath = findFilePathInArgv(argv, argvEnv)
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
@@ -274,7 +271,7 @@ if (!gotLock) {
   })
 
   app.whenReady().then(() => {
-    pendingFilePath = findFilePathInArgv(process.argv)
+    pendingFilePath = findFilePathInArgv(process.argv, argvEnv)
     registerIpc()
     buildMenu()
     createWindow()
